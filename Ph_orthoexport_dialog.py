@@ -6,6 +6,7 @@ except:
 	print("нет gdal модуля!!")
 
 from math import ceil
+from math import floor
 from PySide import QtGui, QtCore
 
 #______________________Создаем интерфейс___________________
@@ -133,6 +134,8 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		self.GoGoNet.clicked.connect(self.ortho_net)
 		
 		self.exec()
+		#____________________________________________________________________________
+		
 		
 	def unlock_export(self,sel):
 		#Переменная нужна для разблокирования кнопки Экспорт. Два критических параметра:Файл разграфки и выходная дирректория, каждый добавляет по еденице.
@@ -154,7 +157,39 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		if self.DATA_OK==0 and sel != 5: self.DATA_OK=sel
 		if self.DATA_OK==3 and sel != 5: self.GoGo.setDisabled(False); self.GoGoNet.setDisabled(False);print ('unlock')
 		print (sel,self.DATA_OK)
-#_____________________________________________________________________________
+		
+	def OrthoBoundCalc(self,Xn,Yn,XS,YS):
+		DifPix=float(self.dif_pix.text())
+		''' Округление начала Если надо
+		Xnround=floor(Xn/DifPix)*DifPix #
+		Ynround=floor(Yn/DifPix)*DifPix
+		'''
+		if self.block_size.currentText()=='Full': #Экспорт целикового фрагмента
+			print('границы целиковые')
+			''' Округление начала Если надо
+			Xnround=floor(Xn/DifPix)*DifPix #
+			Ynround=floor(Yn/DifPix)*DifPix
+			'''
+			Xnround=Xn
+			Ynround=Yn-DifPix
+			XSround=ceil(XS/DifPix+1)*DifPix #Границы округляем в большую сторону и расширяем на пиксель
+			YSround=ceil(YS/DifPix+1)*DifPix
+			OrthoBound=(Xnround,Ynround,Xnround+XSround,Ynround+YSround)
+		else: # Экспорт по тайлам
+			print("Границы со сдвигом")
+			BlockSize=float(self.block_size.currentText())
+			Xnround=Xn
+			Ynround=Yn #-DifPix
+			XSround=ceil(XS/DifPix+1)*DifPix #Границы округляем в большую сторону и расширяем на пиксель
+			YSround=ceil(YS/DifPix+1)*DifPix
+			
+			YBlockSize=BlockSize*DifPix 
+			TileShift=YBlockSize-YSround
+			OrthoBound=(Xnround,Ynround+TileShift,Xnround+XSround,Ynround+YSround+TileShift)
+		
+		print (OrthoBound)
+		return OrthoBound
+		
 	def input_razgr_SHPname(self):
 		#global listShapes
 		
@@ -198,7 +233,7 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 					poligonName=str(shape.label)
 				xMin=min(x); yMin=min(y); xSize=max(x)-min(x); ySize=max(y)-min(y)
 				element=[poligonName,xMin,yMin,xSize,ySize,poligon_ID]
-				self.orthoBounds.append(element)
+				self.orthoBounds.append(element) #ЭТО МАССИВ с ГРАНИЦАМИ ОРТОФОТО 
 				#формат массива:0-имя ортофото, 1-Xmin, 2-Ymin, 3-sizeX, 4-sizeY
 				poligon_ID+=1 #Увеличение на единицу
 			print (len(self.orthoBounds),poligon_ID)
@@ -242,7 +277,7 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 				for line in f:
 					znach=line.split(";")
 					element=[znach[0],znach[1],znach[2],znach[3],znach[4],count]
-					self.orthoBounds.append(element)
+					self.orthoBounds.append(element) #ЭТО МАССИВ с ГРАНИЦАМИ ОРТОФОТО 
 					count+=1
 			print ('orthoBounds=',len(self.orthoBounds))
 			self.unlock_export(1) #разблокирует экспорт, если заданы разграфка и дирректория
@@ -274,7 +309,7 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		else:
 			BlockSize=int(self.block_size.currentText())
 
-# Цикл для запуска ортофото локально или для забивания стека на сеть из массива
+		# Цикл для запуска ортофото локально или для забивания стека на сеть из массива
 		try:
 			#for line in file_razgr:
 			for cu_string in self.orthoBounds:
@@ -284,10 +319,12 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 				sizeXM=float(cu_string[3])
 				sizeYM=float(cu_string[4])
 				shapeNumber=int(cu_string[5])
-				cu_Region=(XMLeft,YMDown,XMLeft+sizeXM,YMDown+sizeYM)
+				#cu_Region_old=(XMLeft,YMDown,XMLeft+sizeXM,YMDown+sizeYM)##ЭТА ПЕРЕМЕННАЯ БУДЕТ ЗАМЕНЕНА НА ФУНКЦИЮ ВЫЧИСЛЕНИЯ ГРАНИЦ
+				cu_Region=self.OrthoBoundCalc(XMLeft,YMDown,sizeXM,sizeYM)#Функция вычисления границ
 				fileoutname=self.OUT_dir+"\\"+OName+".jpg"
-				#print (fileoutname," ",XMLeft," ",YMDown," ",sizeXM," ",sizeYM)
-				print(fileoutname, cu_Region,DifPix, DifPix, BlockSize, BlockSize)
+				#print (cu_Region_old)
+				#print (cu_Region)
+				#print(fileoutname, cu_Region,DifPix, DifPix, BlockSize, BlockSize)
 				if proc_type=='local':
 					print ('Обработка локально')
 					#для тифа chunk.exportOrthomosaic(fileoutname, format="tif", region=cu_Region, projection=self.out_crs,dx=DifPix, dy=DifPix, blockw=BlockSize, blockh=BlockSize, write_kml=False, write_world=True, tiff_compression="lzw", tiff_big=False)
@@ -299,21 +336,27 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 					work.name = "ExportOrthomosaic" #экспорт орто
 					work.frames.append((chunk.key,0))
 					work.params['write_world'] = 1
-					work.params['write_tiles'] = 1
-					work.params['tile_width'] = BlockSize
+					
+					if self.block_size.currentText()=='Full':# Условие на запись тайлов
+						work.params['write_tiles'] = 0
+					else:
+						work.params['write_tiles'] = 1
+
+						work.params['tile_width'] = BlockSize
 					work.params['tile_height'] = BlockSize
 					work.params['path'] = fileoutname #выходная дирректория с именем файла
 					work.params['resolution_x'] = DifPix
 					work.params['resolution_y'] = DifPix
 					work.params['raster_format'] = 2
 					work.params['region'] = cu_Region
-					# ВНИМАНИЕ! По сети нельзя экспортировать в пользовательской проекции
+					# ВНИМАНИЕ! По сети нельзя экспортировать в пользовательской проекции ИЛИ проекция должна быть НА ВСЕХ НОДАХ
 					work.params['projection'] = self.out_crs.authority #Из объекта проекция берется только ее номер EPSG::32637 
 					task.append(work) #Добавляем задачу в таск
 				else:
 					print ('Пока не задано')
 			PhotoScan.app.messageBox('Обработка закончена')
-		except:
+		except Exception as e:
+			print (e)
 			PhotoScan.app.messageBox('Что-то пошло не так ((')
 			return
 				#break
@@ -341,7 +384,6 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		self.export_ortho('local')
 	def ortho_net(self):
 		self.export_ortho('net')
-#______________________Интерфейс готов_____________________
 
 #______Глобальные переменные_____________
 #_________Параметры Сервера Сетевого и папка для работы_____________
