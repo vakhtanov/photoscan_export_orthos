@@ -65,6 +65,12 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		self.OUTFOLDER = QtGui.QPushButton("Выберете дирректорию")  #(" открыть ")
 		self.OUTFOLDER.setFixedSize(170, 26)
 		
+		items_format = ('JPG', 'TIF') # список форматов
+		self.file_format = QtGui.QComboBox() 
+		self.file_format.setFixedSize(50, 26)
+		self.file_format.addItems(items_format)
+		self.file_format.setCurrentIndex(0) #Устанавливает по умолчанию второе значение из списка - 8192
+		
 		self.GoGo = QtGui.QPushButton("Экспорт локально")  #(" Экспорт локально ")
 		self.GoGo.setFixedSize(170, 26)
 		self.GoGo.setDisabled(True)
@@ -102,6 +108,7 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		#hbox5.addStretch(1)
 		hbox6.addWidget(self.OUTFOLDER,alignment=0)
 		hbox6.addWidget(self.TXT_OUTFOLDER,alignment=0)
+		hbox6.addWidget(self.file_format,alignment=0)
 		
 		hbox7 = QtGui.QHBoxLayout()
 		hbox7.addWidget(self.GoGo, stretch=0, alignment=0)
@@ -132,6 +139,8 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		self.OUTFOLDER.clicked.connect(self.input_out_dir)
 		self.GoGo.clicked.connect(self.ortho_local)
 		self.GoGoNet.clicked.connect(self.ortho_net)
+		#self.WindowContextHelpButtonHint.clicked.connect(self.prog_hint)
+		#self.WindowTitleHint.clicked.connect(self.prog_hint)
 		
 		self.exec()
 		#____________________________________________________________________________
@@ -301,6 +310,7 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 
 	def export_ortho(self,proc_type): # универсальная процедура экспорта для локлаьной и для сетевой обработки
 		#global chunk
+		file_format=self.file_format.currentText()
 		print ('orthoBounds=',len(self.orthoBounds))
 		task=[] #Это СПИСОК тасков
 		DifPix=float(self.dif_pix.text())
@@ -321,14 +331,23 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 				shapeNumber=int(cu_string[5])
 				#cu_Region_old=(XMLeft,YMDown,XMLeft+sizeXM,YMDown+sizeYM)##ЭТА ПЕРЕМЕННАЯ БУДЕТ ЗАМЕНЕНА НА ФУНКЦИЮ ВЫЧИСЛЕНИЯ ГРАНИЦ
 				cu_Region=self.OrthoBoundCalc(XMLeft,YMDown,sizeXM,sizeYM)#Функция вычисления границ
-				fileoutname=self.OUT_dir+"\\"+OName+".jpg"
+				if file_format=='JPG':
+					fileoutname=self.OUT_dir+"\\"+OName+".jpg"
+				elif file_format=='TIF':
+					fileoutname=self.OUT_dir+"\\"+OName+".tif"
+				else:
+					print("Фотмат файла?")
 				#print (cu_Region_old)
 				#print (cu_Region)
 				#print(fileoutname, cu_Region,DifPix, DifPix, BlockSize, BlockSize)
 				if proc_type=='local':
 					print ('Обработка локально')
-					#для тифа chunk.exportOrthomosaic(fileoutname, format="tif", region=cu_Region, projection=self.out_crs,dx=DifPix, dy=DifPix, blockw=BlockSize, blockh=BlockSize, write_kml=False, write_world=True, tiff_compression="lzw", tiff_big=False)
-					chunk.exportOrthomosaic(fileoutname, format="jpg", region=cu_Region, projection=self.out_crs,dx=DifPix, dy=DifPix, blockw=BlockSize, blockh=BlockSize, write_kml=False, write_world=True, tiff_compression="lzw")
+					if file_format=='JPG':
+						chunk.exportOrthomosaic(fileoutname, format="jpg", region=cu_Region, projection=self.out_crs,dx=DifPix, dy=DifPix, blockw=BlockSize, blockh=BlockSize, write_kml=False, write_world=True)
+					elif file_format=='TIF':
+						chunk.exportOrthomosaic(fileoutname, format="tif", region=cu_Region, projection=self.out_crs,dx=DifPix, dy=DifPix, blockw=BlockSize, blockh=BlockSize, write_kml=False, write_world=True, tiff_compression="lzw", tiff_big=False)
+					else:
+						print("Фотмат файла?")
 				elif proc_type=='net':
 					print ('Обработка по сети')
 					
@@ -341,13 +360,18 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 						work.params['write_tiles'] = 0
 					else:
 						work.params['write_tiles'] = 1
-
-						work.params['tile_width'] = BlockSize
+					work.params['tile_width'] = BlockSize
 					work.params['tile_height'] = BlockSize
 					work.params['path'] = fileoutname #выходная дирректория с именем файла
 					work.params['resolution_x'] = DifPix
 					work.params['resolution_y'] = DifPix
-					work.params['raster_format'] = 2
+					if file_format=='JPG':
+						work.params['raster_format'] = 2
+					elif file_format=='TIF':
+						work.params['raster_format'] = 1
+					else:
+						print("Фотмат файла?")
+					
 					work.params['region'] = cu_Region
 					# ВНИМАНИЕ! По сети нельзя экспортировать в пользовательской проекции ИЛИ проекция должна быть НА ВСЕХ НОДАХ
 					work.params['projection'] = self.out_crs.authority #Из объекта проекция берется только ее номер EPSG::32637 
@@ -384,31 +408,34 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 		self.export_ortho('local')
 	def ortho_net(self):
 		self.export_ortho('net')
+	def prog_hint(self):
+		print("OK")
 
-#______Глобальные переменные_____________
+#НАЧАЛО_ПРОГРАММЫ______Глобальные переменные_____________
 #_________Параметры Сервера Сетевого и папка для работы_____________
 ServerIP='192.168.254.72'
 RootDir=r'V:\Photoscan_Cluster'
 
+#___ПРОВЕРКА_ВЕРСИИ_________________
+PH_version=PhotoScan.app.version
+if PH_version!="1.2.5":
+	PhotoScan.app.messageBox("Версия программы "+PH_version+"\nРабота скрипта гарантируется только на версии 1.2.5")
+else:
+	#PhotoScan.app.messageBox("Версия программы "+PH_version+"\nЫсе в порядке")
+	pass
 doc = PhotoScan.app.document #Текущий проект
 PH_program=PhotoScan.app #сама программа
 ProjectPath=doc.path #Полный путь до файла проекта
-chunk = doc.chunk
-#chunk = PhotoScan.app.document.chunk
+chunk = doc.chunk #chunk = PhotoScan.app.document.chunk
 client = PhotoScan.NetworkClient()
-#sizeXM=1000.05
-#sizeYM=1000.05
-#if sizeXMpix%2: sizeXMpix=sizeXMpix+1
-#if sizeYMpix%2: sizeYMpix=sizeYMpix+1
-
-
 try:
 	ProjectLocalPath_auto = os.path.relpath(ProjectPath, RootDir) # путь до проекта относительно сетевой папки
 	#ЭТИ КОМАНДЫ СРАЗУ ЗАПУСКАЮТ ОКНО
 	parent = QtGui.QApplication.instance().activeWindow()
 	dlg = ExportOrthoWin(parent)
-except:
-	PhotoScan.app.messageBox('Откройте рабочий проект!')
+except Exception as e:
+	PhotoScan.app.messageBox('Откройте рабочий проект! ')
+	print(e)
 	pass
 
 print('\n\n ============== STOP ==============')
