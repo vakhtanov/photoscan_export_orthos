@@ -310,6 +310,10 @@ class ExportOrthoWin(QtGui.QDialog): #новый класс как прилож�
 
 	def export_ortho(self,proc_type): # универсальная процедура экспорта для локлаьной и для сетевой обработки
 		#global chunk
+		# 000000 Проверка на наличие ортофото, пригодится в слежующем СКРИПте на проверку ДЕМ
+		if doc.chunk.orthomosaic==None:
+			PhotoScan.app.messageBox('Нет орто!!')
+			return
 		file_format=self.file_format.currentText()
 		print ('orthoBounds=',len(self.orthoBounds))
 		task=[] #Это СПИСОК тасков
@@ -421,7 +425,7 @@ PH_version=PhotoScan.app.version
 if PH_version!="1.2.5":
 	PhotoScan.app.messageBox("Версия программы "+PH_version+"\nРабота скрипта гарантируется только на версии 1.2.5")
 else:
-	#PhotoScan.app.messageBox("Версия программы "+PH_version+"\nЫсе в порядке")
+	#PhotoScan.app.messageBox("Версия программы "+PH_version+"\nВсе в порядке")
 	pass
 doc = PhotoScan.app.document #Текущий проект
 PH_program=PhotoScan.app #сама программа
